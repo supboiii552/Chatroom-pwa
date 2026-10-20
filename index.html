@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NotifTest">
+  <title>PWA Notification Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #000; color: #fff; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; }
+    .card { background: #1c1c1e; border-radius: 20px; padding: 30px; width: 100%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    h1 { font-size: 1.5rem; margin-bottom: 10px; font-weight: 600; }
+    p { color: #8e8e93; font-size: 0.9rem; margin-bottom: 25px; line-height: 1.4; }
+    button { background: #007aff; color: #fff; border: none; padding: 16px 24px; font-size: 1rem; font-weight: 600; border-radius: 12px; width: 100%; cursor: pointer; transition: active 0.2s; }
+    button:active { opacity: 0.7; }
+    .status { margin-top: 20px; font-size: 0.85rem; color: #ffd60a; font-weight: 500; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>pwa notification test</h1>
+    <p>add this to your ipad home screen first, then tap test.</p>
+    <button id="notifBtn">send notification</button>
+    <div id="status" class="status"></div>
+  </div>
+
+  <script>
+    // 1. dynamic web manifest for pwa installation
+    const manifest = {
+      name: "Notification Test PWA",
+      short_name: "NotifTest",
+      start_url: "./",
+      display: "standalone",
+      background_color: "#000000",
+      theme_color: "#000000",
+      icons: [{ src: "https://via.placeholder.com/192/007aff/ffffff?text=PWA", sizes: "192x192", type: "image/png" }]
+    };
+    const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+    const manifestUrl = URL.createObjectURL(manifestBlob);
+    const link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = manifestUrl;
+    document.head.appendChild(link);
+
+    // 2. inline service worker registration
+    if ('serviceWorker' in navigator) {
+      const swCode = `
+        self.addEventListener('install', (e) => self.skipWaiting());
+        self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+      `;
+      const swBlob = new Blob([swCode], { type: 'application/javascript' });
+      const swUrl = URL.createObjectURL(swBlob);
+      navigator.serviceWorker.register(swUrl).catch(console.error);
+    }
+
+    // 3. notification handler
+    const btn = document.getElementById('notifBtn');
+    const statusDiv = document.getElementById('status');
+
+    btn.addEventListener('click', async () => {
+      if (!('Notification' in window)) {
+        statusDiv.textContent = 'notifications not supported';
+        return;
+      }
+
+      let permission = Notification.permission;
+      if (permission === 'default') {
+        permission = await Notification.requestPermission();
+      }
+
+      if (permission === 'granted') {
+        const reg = await navigator.serviceWorker.ready;
+        reg.showNotification('pwa test', {
+          body: 'notifications work on your ipad bruh',
+          icon: 'https://via.placeholder.com/192/007aff/ffffff?text=PWA'
+        });
+        statusDiv.textContent = 'notification sent';
+      } else {
+        statusDiv.textContent = 'permission denied';
+      }
+    });
+  </script>
+</body>
+</html>
