@@ -2,6 +2,7 @@
   "name": "PWA Notif Test",
   "short_name": "NotifTest",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
