@@ -15,18 +15,20 @@
     p { color: #8e8e93; font-size: 0.9rem; margin-bottom: 25px; }
     button { background: #007aff; color: #fff; border: none; padding: 16px; font-size: 1rem; font-weight: 600; border-radius: 12px; width: 100%; cursor: pointer; }
     button:disabled { background: #3a3a3c; color: #8e8e93; }
-    .status { margin-top: 20px; font-size: 0.85rem; color: #ffd60a; }
+    .status { margin-top: 20px; font-size: 0.85rem; color: #ffd60a; word-break: break-all; }
   </style>
 </head>
 <body>
   <div class="card">
     <h1>pwa test</h1>
-    <p>tap test, then go to your ipad home screen within 5 seconds.</p>
-    <button id="btn">send in 5s</button>
+    <p>must be launched from home screen icon on ipados.</p>
+    <button id="btn">enable notifications</button>
     <div id="status" class="status"></div>
   </div>
 
   <script>
+    const VAPID_PUBLIC_KEY = 'YOUR_PUBLIC_VAPID_KEY'; // generate via web-push / worker
+
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(console.error);
     }
@@ -35,36 +37,48 @@
     const status = document.getElementById('status');
 
     btn.addEventListener('click', async () => {
-      if (!('Notification' in window)) {
-        status.textContent = 'not supported';
+      const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+      if (!isStandalone) {
+        status.textContent = 'error: add to home screen first!';
         return;
       }
 
-      let perm = Notification.permission;
-      if (perm === 'default') perm = await Notification.requestPermission();
+      if (!('Notification' in window) || !('PushManager' in window)) {
+        status.textContent = 'push notifications not supported';
+        return;
+      }
 
+      let perm = await Notification.requestPermission();
       if (perm !== 'granted') {
-        status.textContent = 'denied';
+        status.textContent = 'permission denied';
         return;
       }
 
-      btn.disabled = true;
-      status.textContent = 'locking phone in 5s... go to home screen!';
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
 
-      setTimeout(async () => {
-        try {
-          const reg = await navigator.serviceWorker.ready;
-          await reg.showNotification('pwa notification', {
-            body: 'it finally came through'
+        if (!sub) {
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
           });
-          status.textContent = 'sent';
-        } catch (err) {
-          new Notification('pwa notification', { body: 'fallback sent' });
-          status.textContent = 'sent (fallback)';
         }
-        btn.disabled = false;
-      }, 5000);
+
+        // Send this JSON subscription payload to your Cloudflare worker
+        console.log(JSON.stringify(sub));
+        status.textContent = 'subscribed! trigger push from worker backend now.';
+      } catch (err) {
+        status.textContent = 'sub error: ' + err.message;
+      }
     });
+
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+    }
   </script>
 </body>
 </html>
